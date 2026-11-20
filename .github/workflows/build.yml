@@ -1,0 +1,64 @@
+
+name: Build TheSpoiledSeed V6
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 8
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+
+      - name: Find and Extract ZIP
+        shell: bash
+        run: |
+          set -e
+
+          mapfile -t zips < <(find . -maxdepth 1 -type f -iname '*.zip')
+
+          if [ "${#zips[@]}" -ne 1 ]; then
+            echo "ERROR: Expected exactly one ZIP file."
+            ls -la
+            exit 1
+          fi
+
+          mkdir extracted
+          unzip -q "${zips[0]}" -d extracted
+
+      - name: Install Gradle 2.14.1
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-2.14.1-bin.zip
+          unzip -q gradle-2.14.1-bin.zip
+          echo "$PWD/gradle-2.14.1/bin" >> "$GITHUB_PATH"
+
+      - name: Build V6
+        shell: bash
+        run: |
+          set -e
+
+          BUILD=$(find extracted -type f -name build.gradle -print -quit)
+
+          if [ -z "$BUILD" ]; then
+            echo "ERROR: build.gradle not found!"
+            exit 1
+          fi
+
+          cd "$(dirname "$BUILD")"
+
+          gradle setupCiWorkspace build --no-daemon --stacktrace
+
+      - name: Upload JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: TheSpoiledSeed-V6-JAR
+          path: extracted/**/build/libs/*.jar
+          if-no-files-found: error
